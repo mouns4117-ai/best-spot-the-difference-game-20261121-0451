@@ -10,7 +10,7 @@
 // copies files and writes the dossier from them, nothing else, so the
 // output is a pure function of this repository.
 
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
@@ -35,10 +35,22 @@ function copyTree(from, to) {
   cpSync(from, to, { recursive: true });
 }
 
+// Empty a directory without removing the directory itself. In the grader
+// the output directory is a mounted directory, so removing it fails
+// (EBUSY/EACCES as an unprivileged user) even though its contents are
+// writable. Removing each entry instead leaves the mount point in place.
+function emptyDir(dir: string): void {
+  if (!existsSync(dir)) return;
+  for (const entry of readdirSync(dir)) {
+    rmSync(join(dir, entry), { recursive: true, force: true });
+  }
+}
+
 function handIn() {
   // Start from a clean output directory so a stale file can never survive
-  // into the entry.
-  rmSync(outDir, { recursive: true, force: true });
+  // into the entry. Clear the contents, never the directory itself: the
+  // grader mounts the output directory, and removing a mount point fails.
+  emptyDir(outDir);
   mkdirSync(outDir, { recursive: true });
 
   copyTree(join(repoRoot, 'game'), join(outDir, 'game'));
